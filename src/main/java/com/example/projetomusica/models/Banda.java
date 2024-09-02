@@ -1,6 +1,7 @@
 package com.example.projetomusica.models;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -11,7 +12,7 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor //gera automaticamente um construtor com todos os campos da classe como argumentos.
 @NoArgsConstructor //gera automaticamente um construtor padrão sem argumentos.
-@Table(name = "Banda")
+@Table(name = "Bandas")
 public class Banda {
 
     @Id //marca o campo id como a chave primária da entidade.

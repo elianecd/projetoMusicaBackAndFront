@@ -1,6 +1,8 @@
 package com.example.projetomusica.dtos;
 
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 
-public record BandaDTO(@NotBlank String nome, @NotBlank String resumo) {
+public record BandaDTO(
+        @NotEmpty(message = "{campo.nome.obrigatorio}") String nome,
+        @NotEmpty(message = "{campo.resumo.obrigatorio}") String resumo) {
 }

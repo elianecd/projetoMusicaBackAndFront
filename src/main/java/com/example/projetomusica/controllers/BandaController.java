@@ -4,6 +4,7 @@ import com.example.projetomusica.dtos.AlbumResponseDTO;
 import com.example.projetomusica.dtos.BandaDTO;
 import com.example.projetomusica.dtos.BandaResponseDTO;
 import com.example.projetomusica.dtos.MusicaResponseDTO;
+import com.example.projetomusica.exceptions.BandaAlreadyExistsException;
 import com.example.projetomusica.models.Album;
 import com.example.projetomusica.models.AvaliacaoBanda;
 import com.example.projetomusica.models.AvaliacaoRequest;
@@ -11,22 +12,29 @@ import com.example.projetomusica.models.Banda;
 import com.example.projetomusica.repositories.AvaliacaoBandaRepository;
 import com.example.projetomusica.services.AlbumService;
 import com.example.projetomusica.services.BandaService;
+import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/bandas")
+//@CrossOrigin("http://localhost:4200") //está configurado na WebConfig
 public class BandaController {
+
     Locale enUS = new Locale("en", "US");
 
     @Autowired
@@ -39,18 +47,18 @@ public class BandaController {
     private AlbumService albumService;
 
     @PostMapping("/novo-registro")
-    public ResponseEntity<String> createBanda(@Valid @RequestBody BandaDTO bandaDTO) {
+    public ResponseEntity<Banda> createBanda(@Valid @RequestBody BandaDTO bandaDTO) {
 
-        if (bandaDTO.nome() == null || bandaDTO.resumo() == null) {
-            return new ResponseEntity<>("Nome e resumo são obrigatórios.", HttpStatus.BAD_REQUEST);
-        }
-
-        Banda banda = new Banda(); //A nova instância da classe Banda representa uma nova linha na tabela do banco de
-        // dados onde as informações da banda serão armazenadas.
+        Banda banda = new Banda();
         banda.setNome(bandaDTO.nome());
         banda.setResumo(bandaDTO.resumo());
-        bandaService.createBanda(banda);
-        return new ResponseEntity<>("Banda " + banda.getNome() + ", " + banda.getResumo() + " criada com sucesso.", HttpStatus.CREATED);
+
+        try {
+            Banda savedBanda = bandaService.createBanda(banda);
+            return new ResponseEntity<>(savedBanda, HttpStatus.CREATED);
+        } catch (BandaAlreadyExistsException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
+        }
     }
 
     @PostMapping("/{id}/avaliar-banda")
@@ -63,10 +71,12 @@ public class BandaController {
         }
 
         try {
-            Banda banda = bandaService.findById(idBanda);
-            if (banda == null) {
+            Optional<Banda> bandaOptional = bandaService.findById(idBanda);
+            if (!bandaOptional.isPresent()) {
                 return new ResponseEntity<>("Banda não encontrada.", HttpStatus.BAD_REQUEST);
             }
+
+            Banda banda = bandaOptional.get();
 
             AvaliacaoBanda avaliacaoBanda = new AvaliacaoBanda();
             avaliacaoBanda.setIdBanda(idBanda);
@@ -99,15 +109,17 @@ public class BandaController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
+    @Transactional
     @GetMapping("/{id}/albuns")
     public ResponseEntity<?> listarAlbunsDaBanda(@PathVariable Long id, Pageable pageable) {
 
-        Banda banda = bandaService.findById(id);
+        Optional<Banda> bandaOptional = bandaService.findById(id);
 
-        if (banda == null) {
+        if (!bandaOptional.isPresent()) {
             return new ResponseEntity<>("Nenhuma banda registrada.", HttpStatus.OK);
         }
 
+        Banda banda = bandaOptional.get();
         Pageable pageableWithTenItems = PageRequest.of(pageable.getPageNumber(), 10, pageable.getSort());
 
         Page<Album> albunsPage = albumService.findAllByBanda(banda, pageableWithTenItems);
@@ -124,6 +136,7 @@ public class BandaController {
                     albumDTO.setNome(album.getNome());
                     albumDTO.setMedia(album.getMedia());
                     albumDTO.setDuracaoTotal(album.getDuracaoTotal());
+                    albumDTO.setResumo(album.getResumo()); // Populando o campo resumo
                     if (album.getMusicas().isEmpty()) {
                         albumDTO.setMensagem("Não há musicas cadastradas");
                     } else {
@@ -142,5 +155,43 @@ public class BandaController {
                 .collect(Collectors.toList());
 
         return new ResponseEntity<>(albuns, HttpStatus.OK);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getBandaById(@PathVariable Long id) {
+        Optional<Banda> banda = bandaService.findById(id);
+        if (banda.isPresent()) {
+            BandaResponseDTO response = new BandaResponseDTO(banda.get().getId(), banda.get().getNome(), banda.get().getResumo(), banda.get().getMedia());
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>("Banda não encontrada.", HttpStatus.NOT_FOUND);
+        }
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Void> updateBanda(@PathVariable Long id, @Valid @RequestBody Banda banda) {
+        Optional<Banda> bandaOptional = bandaService.findById(id);
+        if (bandaOptional.isEmpty()) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+
+        Banda existingBanda = bandaOptional.get();
+        existingBanda.setNome(banda.getNome());
+        existingBanda.setResumo(banda.getResumo());
+
+        bandaService.updateBanda(existingBanda);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deletar(@PathVariable Long id) {
+        bandaService.deleteBanda(id);
+    }
+
+    @GetMapping("/pesquisar-banda")
+    public ResponseEntity<List<Banda>> getAllBandas() {
+        List<Banda> bandas = bandaService.findAll();
+        return ResponseEntity.ok(bandas);
     }
 }

@@ -1,6 +1,7 @@
 package com.example.projetomusica.controllers;
 
 import com.example.projetomusica.dtos.AlbumDTO;
+import com.example.projetomusica.exceptions.AlbumAlreadyExistsException;
 import com.example.projetomusica.models.Album;
 import com.example.projetomusica.models.AvaliacaoAlbum;
 import com.example.projetomusica.models.AvaliacaoRequest;
@@ -9,17 +10,25 @@ import com.example.projetomusica.repositories.AvaliacaoAlbumRepository;
 import com.example.projetomusica.services.AlbumService;
 import com.example.projetomusica.services.BandaService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/album")
+@RequiredArgsConstructor
+//@CrossOrigin("http://localhost:4200") //configurado na webconfig
 public class AlbumController {
+
     Locale enUS = new Locale("en", "US");
 
     @Autowired
@@ -31,26 +40,44 @@ public class AlbumController {
     @Autowired
     private AvaliacaoAlbumRepository avaliacaoAlbumRepository;
 
-    @PostMapping("/novo-registro")
-    public ResponseEntity<String> createAlbum(@Valid @RequestBody AlbumDTO albumDTO) {
-
-        if (albumDTO.nome() == null || albumDTO.resumo() == null || albumDTO.bandaId() == null) {
-            return new ResponseEntity<>("Os campos nome, resumo e banda_id são obrigatórios.", HttpStatus.BAD_REQUEST);
+    @GetMapping("/{id}")
+    public ResponseEntity<Album> getAlbumById(@PathVariable Long id) {
+        Optional<Album> albumOptional = albumService.findById(id);
+        if (albumOptional.isPresent()) {
+            return new ResponseEntity<>(albumOptional.get(), HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
+    }
+
+    @GetMapping("/pesquisar-banda")
+    public ResponseEntity<List<Banda>> pesquisarBanda(@RequestParam String nome) {
+        List<Banda> bandas = bandaService.findByNome(nome);
+        return new ResponseEntity<>(bandas, HttpStatus.OK);
+    }
+
+    @PostMapping("/novo-registro/{bandaId}")
+    public ResponseEntity<Album> createAlbum(@PathVariable Long bandaId, @Valid @RequestBody AlbumDTO albumDTO) {
 
         Album album = new Album();
         album.setNome(albumDTO.nome());
         album.setResumo(albumDTO.resumo());
 
-        Banda banda = bandaService.findById(albumDTO.bandaId());
+        try {
+            Optional<Banda> bandaOptional = bandaService.findById(bandaId);
 
-        if (banda == null) {
-            return new ResponseEntity<>("Banda não encontrada.", HttpStatus.BAD_REQUEST);
+            if (bandaOptional.isEmpty()) {
+                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            }
+
+            Banda banda = bandaOptional.get();
+            album.setBanda(banda);
+
+            Album savedAlbum = albumService.createAlbum(album);
+            return new ResponseEntity<>(savedAlbum, HttpStatus.CREATED);
+        } catch (AlbumAlreadyExistsException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
         }
-        album.setBanda(banda);
-
-        albumService.createAlbum(album);
-        return new ResponseEntity<>("Álbum " + album.getNome() + ", " + album.getResumo() + " da banda " + album.getBanda().getNome() + " criado com sucesso.", HttpStatus.CREATED);
     }
 
     @PostMapping("/{id}/avaliar-album")
@@ -62,11 +89,13 @@ public class AlbumController {
             return new ResponseEntity<>("Valor inválido.", HttpStatus.BAD_REQUEST);
         }
 
-        Album album = albumService.findById(id);
+        Optional<Album> albumOptional = albumService.findById(id);
 
-        if (album == null) {
+        if (albumOptional.isEmpty()) {
             return new ResponseEntity<>("Álbum não encontrado.", HttpStatus.BAD_REQUEST);
         }
+
+        Album album = albumOptional.get();
 
         AvaliacaoAlbum avaliacao = new AvaliacaoAlbum();
         avaliacao.setAlbumId(id);
@@ -80,8 +109,19 @@ public class AlbumController {
         album.setMedia(albumService.getMedia());
         albumService.save(album);
 
-        String mediaFormatada = String.format(enUS,"%.2f", album.getMedia());
+        String mediaFormatada = String.format(enUS, "%.2f", album.getMedia());
 
         return new ResponseEntity<>("Avaliação adicionada com sucesso. Média: " + mediaFormatada, HttpStatus.CREATED);
+    }
+
+    @PatchMapping("/{id}")
+    public Album atualizarNomeOuResumo(@PathVariable Long id, @RequestBody Album album) {
+        return albumService.atualizarNomeOuResumo(id, album);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deletarAlbum(@PathVariable Long id) {
+        albumService.deletarAlbum(id);
     }
 }

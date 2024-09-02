@@ -15,7 +15,8 @@ public class AlbumResponseDTO {
     private Long id;
     private String nome;
     private List<MusicaResponseDTO> musicas;
-    private String mensagem;
+    private String resumo;
     private Double media;
     private Integer duracaoTotal;
+    private String mensagem;
 }

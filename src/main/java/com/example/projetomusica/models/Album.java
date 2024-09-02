@@ -17,7 +17,7 @@ import java.util.List;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "Album")
+@Table(name = "Albuns")
 @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 public class Album {
 
@@ -41,8 +41,19 @@ public class Album {
     @Column(name = "media")
     private Double media = 0.0;
 
-    @JsonManagedReference
-    @OneToMany(mappedBy = "album", fetch = FetchType.LAZY) //significa que a lista de músicas associadas a um álbum específico só será carregada quando você explicitamente chamar album.getMusicas().
-    //Isso é útil para melhorar a performance da aplicação, pois evita carregar dados desnecessários do banco de dados, especialmente quando se trabalha com grandes volumes de dados ou relações entre entidades que podem não ser necessárias imediatamente.
-    private List<Musica> musicas = new ArrayList<>();
+    @OneToMany(mappedBy = "album", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Musica> musicas;
+
+    @Override
+    public String toString() {
+        return "Album{" +
+                "id=" + id +
+                ", nome='" + nome + '\'' +
+                ", resumo='" + resumo + '\'' +
+                ", duracaoTotal=" + duracaoTotal +
+                ", media=" + media +
+                ", banda=" + banda +
+                ", musicas=" + musicas +
+                '}';
+    }
 }

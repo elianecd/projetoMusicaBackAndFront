@@ -2,7 +2,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/projetomusica #3306 eh a porta padrao do MySQL
     username: root
-    password: root
+    password: 789789
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:

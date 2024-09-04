@@ -1,6 +1,7 @@
 package com.example.projetomusica.rest;
 
 import com.example.projetomusica.exceptions.BandaAlreadyExistsException;
+import com.example.projetomusica.exceptions.UserAlreadyExistsException;
 import com.example.projetomusica.rest.exception.ApiErrors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +40,13 @@ public class ApplicationControllerAdvice {
     @ExceptionHandler(BandaAlreadyExistsException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResponseEntity<ApiErrors> handleBandaAlreadyExistsException(BandaAlreadyExistsException ex) {
+        ApiErrors apiErrors = new ApiErrors(ex.getMessage());
+        return new ResponseEntity<>(apiErrors, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ApiErrors> handleUserAlreadyExistsException(UserAlreadyExistsException ex) {
         ApiErrors apiErrors = new ApiErrors(ex.getMessage());
         return new ResponseEntity<>(apiErrors, HttpStatus.BAD_REQUEST);
     }
